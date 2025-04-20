@@ -1,5 +1,4 @@
-# Abigail Mae Saliente
-# BS Statistics 4-1
+
 # Load libraries
 library(ggplot2)
 library(dplyr)
