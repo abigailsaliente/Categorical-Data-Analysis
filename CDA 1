@@ -1,0 +1,238 @@
+# Abigail Mae Saliente
+# BS Statistics 4-1
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(ggsurvfit)
+library(readxl)
+library(survival)
+library(survminer)
+library(MASS)
+
+attach(RehospitalizationData)
+str(RehospitalizationData)
+
+
+# --- 1. Time (already numeric, no change needed) ---
+# Should already be in days from discharge to either readmission or end of follow-up
+RehospitalizationData$Time <- as.numeric(RehospitalizationData$Time)
+
+# --- 2. Event ---
+# 1 = readmitted, 0 = not readmitted
+RehospitalizationData$Event <- ifelse(RehospitalizationData$Event == "Yes", 1,
+                                      ifelse(RehospitalizationData$Event == "No", 0, RehospitalizationData$Event))
+RehospitalizationData$Event <- as.numeric(RehospitalizationData$Event)
+
+# --- 3. Age Group ---
+RehospitalizationData$AgeGroup <- cut(RehospitalizationData$Age,
+                                      breaks = c(0, 49, 65, 80, Inf),
+                                      labels = c("<50", "50-65", "65-80", "80+"),
+                                      right = TRUE)
+# --- 4. Sex
+RehospitalizationData$Sex <- factor(RehospitalizationData$Sex, 
+                                    levels = c("Male", "Female"))
+
+
+# --- 5. Comorbidity (Yes/No) ---
+RehospitalizationData$Comorbidity <- factor(RehospitalizationData$Comorbidity,
+                                            levels = c("No", "Yes"))
+
+
+
+# Create Overall Kaplan-Meier function
+# Note that ~1 means indicates that we estimate the
+# Kaplan-Meier without any grouping
+km <- survfit(
+  Surv(Time, Event) ~1,
+  data = RehospitalizationData)
+km
+summary(km)
+# Create Kaplan-Meier plots
+survfit(Surv(Time, Event) ~ 1, data = RehospitalizationData) %>%
+  ggsurvfit() +
+  add_confidence_interval() +
+  add_quantile(0.5) +
+  add_risktable() +
+  labs(
+    x = "Days since discharge",
+    y = "Survival Probability (Not Readmitted)"
+  ) +
+  coord_cartesian(xlim = c(0, 25)) +
+  ggtitle("Kaplan-Meier Curve for Rehospitalization")
+
+
+
+# Kaplan-Meier Curve Grouped by Comorbidity (with log-rank test)
+survfit2(Surv(Time, Event) ~ Comorbidity, data = RehospitalizationData) %>%
+  ggsurvfit() +
+  labs(
+    x = "Days since discharge",
+    y = "Survival Probability (Not Readmitted)"
+  ) +
+  coord_cartesian(xlim = c(0, 25)) +   # Set x-axis limits
+  add_quantile(0.5) +  # # Add the median survival line (p = 0.5)
+  add_pvalue(
+    test = "log-rank",
+    pvalue_fun = scales::pvalue_format(),   # control decimal places
+    x = 20,  # position of p-value
+    y = 0.1
+  ) +
+  ggtitle("Kaplan-Meier Curve and Log-rank Test by Comorbidity") +
+  scale_color_manual(
+    name = "Comorbidity",
+    values = c("No" = "darkgreen", "Yes" = "tomato"),
+    labels = c("No Comorbidity", "Has Comorbidity")
+  ) +
+  add_risktable()
+
+
+# Kaplan-Meier by Sex with log rank
+survfit2(Surv(Time, Event) ~ Sex, data = RehospitalizationData) %>%
+  ggsurvfit() +
+  labs(
+    x = "Days since discharge",
+    y = "Survival Probability (Not Readmitted)"
+  ) +
+  coord_cartesian(xlim = c(0, 25)) +
+  add_quantile(0.5) +
+  add_pvalue(
+    test = "log-rank",
+    pvalue_fun = scales::pvalue_format(),
+    x = 20,
+    y = 0.1
+  ) +
+  ggtitle("Kaplan-Meier Curve and Log-rank Test by Sex") +
+  scale_color_manual(
+    name = "Sex",
+    values = c("Male" = "blue", "Female" = "purple"),
+    labels = c("Male", "Female")
+  ) +
+  add_risktable()
+
+
+# Kaplan-Meir by Age Group with log rank
+# Create age groups (modify breakpoints as needed)
+RehospitalizationData$AgeGroup <- cut(RehospitalizationData$Age,
+                                      breaks = c(0, 40, 60, 80, Inf),
+                                      labels = c("≤40", "41–60", "61–80", "81+"))
+
+# KM plot by Age Group
+survfit2(Surv(Time, Event) ~ AgeGroup, data = RehospitalizationData) %>%
+  ggsurvfit() +
+  labs(
+    x = "Days since discharge",
+    y = "Survival Probability (Not Readmitted)"
+  ) +
+  coord_cartesian(xlim = c(0, 25)) +
+  add_quantile(0.5) +
+  add_pvalue(
+    test = "log-rank",
+    pvalue_fun = scales::pvalue_format(),
+    x = 20,
+    y = 0.1
+  ) +
+  ggtitle("Kaplan-Meier Curve and Log-rank Test by Age Group") +
+  scale_color_brewer(
+    name = "Age Group",
+    palette = "Dark2"
+  ) +
+  add_risktable()
+
+
+
+# Kapplan meir by  Sex with log rank
+survfit2(Surv(Time, Event) ~ Sex, data = RehospitalizationData) %>%
+  ggsurvfit() +
+  labs(
+    x = "Days since discharge",
+    y = "Survival Probability (Not Readmitted)"
+  ) +
+  coord_cartesian(xlim = c(0, 25)) +
+  add_quantile(0.5) +
+  add_pvalue(
+    test = "log-rank",
+    pvalue_fun = scales::pvalue_format(),
+    x = 20,
+    y = 0.1
+  ) +
+  ggtitle("Kaplan-Meier Curve and Log-rank Test by Sex") +
+  scale_color_manual(
+    name = "Sex",
+    values = c("Male" = "steelblue", "Female" = "orchid")
+  ) +
+  add_risktable()
+
+
+
+#######SIGNIFICANT AND NOT SIGNIFICANT FACTORS#######
+var_sex <- survdiff(Surv(Time, Event)~ Sex, data=RehospitalizationData$Sex)
+var_sex
+# NOT SIG ~ 0.3
+
+
+var_comorb <- survdiff(Surv(Time, Event)~ Comorbidity, data=RehospitalizationData$Sex)
+var_comorb
+# NOT SIG ~ 0.7
+
+var_event <- survdiff(Surv(Time, Event)~ Event, data=RehospitalizationData$Sex)
+var_event
+# SIG ~ 9E-05
+
+var_time <- survdiff(Surv(Time, Event) ~ Time, data=RehospitalizationData)
+var_time
+# SIG ~ 5e-10 
+
+var_age <- survdiff(Surv(Time, Event) ~ Age, data=RehospitalizationData)
+var_age
+# SIG ~ 0.03
+
+# cox ph
+# Assumption Checking for CoxPH
+
+# Schoenfeld test - proportional hazard (global; overall - not individually)
+
+# Ho: There is no significant correlation between residual (error) and time.
+
+# Ha: There is a significant correlation between residual and time.
+Cox1 <- coxph(Surv(Time, Event) ~ as.factor(Sex) + Comorbidity + Age, data = RehospitalizationData)
+Cox1
+summary(Cox1)
+
+# Check Proportional Hazards Assumption using cox.zph():
+
+
+cox.zph(Cox1)
+# Exponential AFT Model
+aft_exp <- survreg(Surv(Time, Event) ~ Sex + Comorbidity + Age, 
+                   data = RehospitalizationData, 
+                   dist = "exponential")
+
+# Weibull AFT Model
+aft_weib <- survreg(Surv(Time, Event) ~ Sex + Comorbidity + Age, 
+                    data = RehospitalizationData, 
+                    dist = "weibull")
+
+# Log-normal AFT Model
+aft_lnorm <- survreg(Surv(Time, Event) ~ Sex + Comorbidity + Age, 
+                     data = RehospitalizationData, 
+                     dist = "lognormal")
+
+# Log-logistic AFT Model
+aft_llogis <- survreg(Surv(Time, Event) ~ Sex + Comorbidity + Age, 
+                      data = RehospitalizationData, 
+                      dist = "loglogistic")
+
+AIC(aft_exp, aft_weib, aft_lnorm, aft_llogis)
+summary(aft_weib)
+
+
+
+# Compare model fit
+AIC(aft_exp, aft_weib, aft_lnorm, aft_llogis)
+BIC(aft_exp, aft_weib, aft_lnorm, aft_llogis)
+
+# Log-likelihoods
+logLik(aft_exp)
+logLik(aft_weib)
+logLik(aft_lnorm)
+logLik(aft_llogis)
